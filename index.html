@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Web RTC demo</title>
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
+</head>
+<body>
+  <div id="app" class="container" style="margin-top: 150px; display: table; width: 100%;">
+
+  <h2>Recordings</h2>
+  <ul id="recordingslist"></ul>
+  
+  <h2>Log</h2>
+  <pre id="log"></pre>
+
+    <div class="row" style="display: table-row;">
+      <div class="col" style="height: 400px; display: table-cell; vertical-align: bottom; width: 100%;">
+        <div class="card" style="width: 20rem; margin-bottom: 10px;" v-for="conversation in conversations">
+          <div class="card-body">
+            <h4 class="card-title">{{ conversation.name }}</h4>
+            <h6 class="card-subtitle mb-2 text-muted">{{ conversation.created_at | fromNow }}</h6>
+            <p class="card-text">{{ conversation.message }}</p>
+            <audio controls="" :src="conversation.audio" v-show="conversation.audio"></audio>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="display: table-row;">
+      <div class="col">
+        <div class="input-group">
+          <input type="text" class="form-control" placeholder="Message..." aria-label="Search for..." v-model="message" v-on:keyup.enter="sendMessage">
+          <span class="input-group-btn">
+            <button class="btn btn-secondary" type="button" v-on:click="recordToggle(this)">
+              <i class="fa fa-stop-circle-o" v-if="recordingStarted"></i>
+              <i class="fa fa-microphone" v-else></i>
+            </button>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.3/umd/popper.min.js" integrity="sha384-vFJXuSJphROIrBnz7yo7oB41mKfc8JzQZiCq4NCceLEaO4IHwicKwpJf9c9IpFgh" crossorigin="anonymous"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js" integrity="sha384-alpBpkh1PFOepccYVYDB4do5UnbKysX5WZXm3XxPqe5iKTfUKjNkCk9SaVuEZflJ" crossorigin="anonymous"></script>
+  <script src="https://use.fontawesome.com/d0c60a6f24.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.19.2/moment.min.js" type="text/javascript"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.6/vue.min.js" type="text/javascript"></script>
+
+  <script type="text/javascript">
+    function __log(e, data) {
+      log.innerHTML += "\n" + e + " " + (data || '');
+    }
+
+    var audio_context;
+    var recorder;
+
+    var app = new Vue({
+      el: '#app',
+      data: function() {
+        return {
+          sender: 'Risal Hidayat',
+          message: '',
+          recordingStarted: false,
+          conversations: [{
+            name: "risal",
+            message: "cau",
+            created_at: moment(),
+          }],
+        }
+      },
+      filters: {
+        fromNow:  function(date) {
+          return moment(date).fromNow()
+        }
+      },
+      methods: {
+        sendMessage: function() {
+          let data = {};
+          data.name = this.sender
+          data.message = this.message
+          data.created_at =  moment()
+
+          this.conversations.push(data)
+
+          this.message = '';
+        },
+        recordToggle: function(button) {
+          if (this.recordingStarted == false) {
+            recorder && recorder.record()
+            
+            this.recordingStarted = true
+            __log('Recording...');
+          } else {
+            recorder && recorder.stop()
+            
+            this.recordingStarted = false
+            
+            __log('Stopped recording.');
+            
+            // create WAV download link using audio data blob
+            this.createDownloadLink();
+            
+            recorder.clear();
+          }
+        },
+        createDownloadLink: function() {
+          const appInstance = this
+
+          recorder && recorder.exportWAV(function(blob) {
+            var url = URL.createObjectURL(blob);
+            // var li = document.createElement('li');
+            // var au = document.createElement('audio');
+            // var hf = document.createElement('a');
+            
+            // au.controls = true;
+            // au.src = url;
+            // hf.href = url;
+            // hf.download = new Date().toISOString() + '.wav';
+            // hf.innerHTML = hf.download;
+            // li.appendChild(au);
+            // li.appendChild(hf);
+            // recordingslist.appendChild(li);
+
+            let data = {};
+            data.name = appInstance.sender
+            data.created_at = moment()
+            data.audio = url
+
+            appInstance.conversations.push(data)
+          });
+        },
+        startUserMedia: function(stream) {
+          var input = audio_context.createMediaStreamSource(stream);
+          __log('Media stream created.');
+          // Uncomment if you want the audio to feedback directly
+          //input.connect(audio_context.destination);
+          //__log('Input connected to audio context destination.');
+          
+          recorder = new Recorder(input);
+          __log('Recorder initialised.');
+        }
+      },
+      mounted: function() {
+        try {
+          // webkit shim
+          window.AudioContext = window.AudioContext || window.webkitAudioContext;
+          navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia;
+          window.URL = window.URL || window.webkitURL;
+          
+          audio_context = new AudioContext;
+          __log('Audio context set up.');
+          __log('navigator.getUserMedia ' + (navigator.getUserMedia ? 'available.' : 'not present!'));
+        } catch (e) {
+          alert('No web audio support in this browser!');
+        }
+        
+        navigator.getUserMedia({audio: true}, this.startUserMedia, function(e) {
+          __log('No live audio input: ' + e);
+        });
+      }
+    })
+  </script>
+  <script src="recorder.js" type="text/javascript"></script>
+</body>
+</html>
